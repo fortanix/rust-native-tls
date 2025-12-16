@@ -1,6 +1,7 @@
 extern crate openssl;
 extern crate openssl_probe;
 
+use self::openssl::stack;
 use self::openssl::error::ErrorStack;
 use self::openssl::hash::MessageDigest;
 use self::openssl::nid::Nid;
@@ -394,6 +395,19 @@ impl TlsAcceptor {
     }
 }
 
+pub struct ChainIterator<'a, S: 'a>(Option<stack::Iter<'a, X509>>, &'a TlsStream<S>);
+
+impl<'a, S> Iterator for ChainIterator<'a, S> {
+    type Item = Certificate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(i) = self.0.as_mut() {
+            return i.next().map(|c| Certificate(c.to_owned()));
+        }
+        None
+    }
+}
+
 pub struct TlsStream<S>(ssl::SslStream<S>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
@@ -419,6 +433,13 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
         Ok(self.0.ssl().peer_certificate().map(Certificate))
+    }
+
+    pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>, Error> {
+        Ok(ChainIterator(
+            self.0.ssl().peer_cert_chain().map(|stack| stack.iter()),
+            self,
+        ))
     }
 
     #[cfg(feature = "alpn")]

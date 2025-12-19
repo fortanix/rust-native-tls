@@ -477,6 +477,25 @@ impl TlsAcceptor {
     }
 }
 
+pub struct ChainIterator<'a, S: 'a> {
+    trust: Option<SecTrust>,
+    pos: usize,
+    _stream: &'a TlsStream<S>,
+}
+
+impl<'a, S> Iterator for ChainIterator<'a, S> {
+    type Item = Certificate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(trust) = self.trust.as_ref() {
+            let pos = self.pos;
+            self.pos += 1;
+            return trust.certificate_at_index(pos as _).map(Certificate);
+        }
+        None
+    }
+}
+
 pub struct TlsStream<S> {
     stream: secure_transport::SslStream<S>,
     cert: Option<SecCertificate>,
@@ -512,6 +531,21 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         trust.evaluate()?;
 
         Ok(trust.certificate_at_index(0).map(Certificate))
+    }
+
+    pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>, Error> {
+        let trust = match self.stream.context().peer_trust2()? {
+            Some(trust) => {
+                trust.evaluate()?;
+                Some(trust)
+            }
+            None => None,
+        };
+        Ok(ChainIterator {
+            trust,
+            pos: 0,
+            _stream: self,
+        })
     }
 
     #[cfg(feature = "alpn")]

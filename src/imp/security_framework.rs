@@ -10,6 +10,7 @@ use self::security_framework::random::SecRandom;
 use self::security_framework::secure_transport::{
     self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
 };
+use self::security_framework::trust::SecTrust;
 use self::security_framework_sys::base::{errSecIO, errSecParam};
 use std::error;
 use std::fmt;
